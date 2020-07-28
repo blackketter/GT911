@@ -1,26 +1,31 @@
-#include "Goodix.h"
+#include "Arduino.h"
+#include "GT911.h"
 #include "Wire.h"
 
 // Interrupt handling
-volatile uint8_t goodixIRQ = 0;
+volatile uint8_t GT911IRQ = 0;
 
-void ICACHE_RAM_ATTR _goodix_irq_handler() {
+#ifndef ICACHE_RAM_ATTR
+#define ICACHE_RAM_ATTR
+#endif
+
+void ICACHE_RAM_ATTR _GT911_irq_handler() {
   noInterrupts();
-  goodixIRQ = 1;
+  GT911IRQ = 1;
   interrupts();
 }
 
 
 // Implementation
-Goodix::Goodix() {
+GT911::GT911() {
 
 }
 
-void Goodix::setHandler(void (*handler)(int8_t, GTPoint*)) {
+void GT911::setHandler(void (*handler)(int8_t, GTPoint*)) {
   touchHandler = handler;
 }
 
-bool Goodix::begin(uint8_t interruptPin, uint8_t resetPin, uint8_t addr) {
+bool GT911::begin(uint8_t interruptPin, uint8_t resetPin, uint8_t addr) {
   intPin = interruptPin;
   rstPin = resetPin;
   i2cAddr = addr;
@@ -34,7 +39,7 @@ bool Goodix::begin(uint8_t interruptPin, uint8_t resetPin, uint8_t addr) {
 }
 
 
-bool Goodix::reset() {
+bool GT911::reset() {
   msSleep(1);
 
   pinOut(intPin);
@@ -49,7 +54,7 @@ bool Goodix::reset() {
   msSleep(11);
 
   /* HIGH: 0x28/0x29 (0x14 7bit), LOW: 0xBA/0xBB (0x5D 7bit) */
-  pinSet(intPin, i2cAddr == GOODIX_I2C_ADDR_28);
+  pinSet(intPin, i2cAddr == GT911_I2C_ADDR_28);
 
   /* T3: > 100us */
   usSleep(110);
@@ -66,21 +71,21 @@ bool Goodix::reset() {
   msSleep(51);
   pinIn(intPin); // INT pin has no pullups so simple set to floating input
 
-  attachInterrupt(intPin, _goodix_irq_handler, RISING);
-  //  detachInterrupt(intPin, _goodix_irq_handler);
+  attachInterrupt(intPin, _GT911_irq_handler, RISING);
+  //  detachInterrupt(intPin, _GT911_irq_handler);
 
   return true;
 }
 
 /**
-   Read goodix touchscreen version
+   Read GT911 touchscreen version
    set 4 chars + zero productID to target
 */
-uint8_t Goodix::productID(char *target) {
+uint8_t GT911::productID(char *target) {
   uint8_t error;
   uint8_t buf[4];
 
-  error = read(GOODIX_REG_ID, buf, 4);
+  error = read(GT911_REG_ID, buf, 4);
   if (error) {
     return error;
   }
@@ -92,16 +97,16 @@ uint8_t Goodix::productID(char *target) {
 }
 
 /**
-   goodix_i2c_test - I2C test function to check if the device answers.
+   GT911_i2c_test - I2C test function to check if the device answers.
 
    @client: the i2c client
 */
-uint8_t Goodix::test() {
+uint8_t GT911::test() {
   uint8_t testByte;
-  return read(GOODIX_REG_CONFIG_DATA,  &testByte, 1);
+  return read(GT911_REG_CONFIG_DATA,  &testByte, 1);
 }
 
-uint8_t Goodix::calcChecksum(uint8_t* buf, uint8_t len) {
+uint8_t GT911::calcChecksum(uint8_t* buf, uint8_t len) {
   uint8_t ccsum = 0;
   for (uint8_t i = 0; i < len; i++) {
     ccsum += buf[i];
@@ -111,7 +116,7 @@ uint8_t Goodix::calcChecksum(uint8_t* buf, uint8_t len) {
   return ccsum;
 }
 
-uint8_t Goodix::readChecksum() {
+uint8_t GT911::readChecksum() {
   uint16_t aStart = GT_REG_CFG;
   uint16_t aStop = 0x80FE;
   uint8_t len = aStop - aStart + 1;
@@ -121,7 +126,7 @@ uint8_t Goodix::readChecksum() {
   return calcChecksum(buf, len);
 }
 
-uint8_t Goodix::fwResolution(uint16_t maxX, uint16_t maxY) {
+uint8_t GT911::fwResolution(uint16_t maxX, uint16_t maxY) {
   uint8_t len = 0x8100 - GT_REG_CFG + 1;
   uint8_t cfg[len];
   read(GT_REG_CFG, cfg, len);
@@ -133,25 +138,25 @@ uint8_t Goodix::fwResolution(uint16_t maxX, uint16_t maxY) {
   cfg[len - 2] = calcChecksum(cfg, len - 2);
   cfg[len - 1] = 1;
 
-  write(GT_REG_CFG, cfg, len);
+  return write(GT_REG_CFG, cfg, len);
 }
 
-GTConfig* Goodix::readConfig() {
+GTConfig* GT911::readConfig() {
   read(GT_REG_CFG, (uint8_t *) &config, sizeof(config));
   return &config;
 }
 
-GTInfo* Goodix::readInfo() {
+GTInfo* GT911::readInfo() {
   read(GT_REG_DATA, (uint8_t *) &info, sizeof(config));
   return &info;
 }
 
-void Goodix::armIRQ() {
-  attachInterrupt(intPin, _goodix_irq_handler, RISING);
+void GT911::armIRQ() {
+  attachInterrupt(intPin, _GT911_irq_handler, RISING);
 }
 
-void Goodix::onIRQ() {
-  //uint8_t buf[1 + GOODIX_CONTACT_SIZE * GOODIX_MAX_CONTACTS];
+void GT911::onIRQ() {
+  //uint8_t buf[1 + GT911_CONTACT_SIZE * GT911_MAX_CONTACTS];
   int8_t contacts;
 
   contacts = readInput(points);
@@ -180,26 +185,26 @@ void Goodix::onIRQ() {
     */
   }
 
-  //Serial.println(&points[1 + GOODIX_CONTACT_SIZE * i]);
-  // goodix_ts_report_touch(&points[1 + GOODIX_CONTACT_SIZE * i]);
+  //Serial.println(&points[1 + GT911_CONTACT_SIZE * i]);
+  // GT911_ts_report_touch(&points[1 + GT911_CONTACT_SIZE * i]);
 
-  write(GOODIX_READ_COORD_ADDR, 0);
-  /*struct goodix_ts_data *ts = dev_id;
+  write(GT911_READ_COORD_ADDR, 0);
+  /*struct GT911_ts_data *ts = dev_id;
 
-    goodix_process_events(ts);
+    GT911_process_events(ts);
 
-    write(GOODIX_READ_COORD_ADDR, 0);
-    //if (write(GOODIX_READ_COORD_ADDR, 0) < 0)
+    write(GT911_READ_COORD_ADDR, 0);
+    //if (write(GT911_READ_COORD_ADDR, 0) < 0)
     //  dev_err(&ts->client->dev, "I2C write end_cmd error\n");
 
     return IRQ_HANDLED;
   */
 }
 
-void Goodix::loop() {
+void GT911::loop() {
   noInterrupts();
-  uint8_t irq = goodixIRQ;
-  goodixIRQ = 0;
+  uint8_t irq = GT911IRQ;
+  GT911IRQ = 0;
   interrupts();
 
   if (irq) {
@@ -208,13 +213,13 @@ void Goodix::loop() {
 }
 #define EAGAIN 100 // Try again error
 
-int16_t Goodix::readInput(uint8_t *data) {
+int16_t GT911::readInput(uint8_t *data) {
   int touch_num;
   int error;
 
   uint8_t regState[1];
 
-  error = read(GOODIX_READ_COORD_ADDR, regState, 1);
+  error = read(GT911_READ_COORD_ADDR, regState, 1);
   //log_printf("regState: %#06x\n", regState);
 
   if (error) {
@@ -232,11 +237,11 @@ int16_t Goodix::readInput(uint8_t *data) {
   //log_printf("touch num: %d\n", touch_num);
 
   if (touch_num > 0) {
-    /*    data += 1 + GOODIX_CONTACT_SIZE;
-        error = read(GOODIX_READ_COORD_ADDR + 1 + GOODIX_CONTACT_SIZE, data,
-              GOODIX_CONTACT_SIZE * (touch_num - 1));
+    /*    data += 1 + GT911_CONTACT_SIZE;
+        error = read(GT911_READ_COORD_ADDR + 1 + GT911_CONTACT_SIZE, data,
+              GT911_CONTACT_SIZE * (touch_num - 1));
     */
-    error = read(GOODIX_READ_COORD_ADDR + 1, data, GOODIX_CONTACT_SIZE * (touch_num));
+    error = read(GT911_READ_COORD_ADDR + 1, data, GT911_CONTACT_SIZE * (touch_num));
 
     if (error)
       return -error;
@@ -246,22 +251,22 @@ int16_t Goodix::readInput(uint8_t *data) {
 }
 
 //----- Utils -----
-void Goodix::i2cStart(uint16_t reg) {
+void GT911::i2cStart(uint16_t reg) {
   Wire.beginTransmission(i2cAddr);
   Wire.write(highByte(reg));
   Wire.write(lowByte(reg));
 }
 
-void Goodix::i2cRestart() {
+void GT911::i2cRestart() {
   Wire.endTransmission(false);
   Wire.beginTransmission(i2cAddr);
 }
 
-uint8_t Goodix::i2cStop() {
+uint8_t GT911::i2cStop() {
   return Wire.endTransmission(true);
 }
 
-uint8_t Goodix::write(uint16_t reg, uint8_t *buf, size_t len) {
+uint8_t GT911::write(uint16_t reg, uint8_t *buf, size_t len) {
   uint8_t error;
   uint16_t startPos = 0;
 
@@ -275,28 +280,27 @@ uint8_t Goodix::write(uint16_t reg, uint8_t *buf, size_t len) {
   return 0;
 }
 
-uint8_t Goodix::write(uint16_t reg, uint8_t buf) {
+uint8_t GT911::write(uint16_t reg, uint8_t buf) {
   i2cStart(reg);
   Wire.write(buf);
   return Wire.endTransmission();
 }
 
-uint8_t Goodix::read(uint16_t reg, uint8_t *buf, size_t len) {
+uint8_t GT911::read(uint16_t reg, uint8_t *buf, size_t len) {
   uint8_t res;
 
   i2cStart(reg);
 
   res = Wire.endTransmission(false);
-  if (res != GOODIX_OK) {
+  if (res != GT911_OK) {
     return res;
   }
 
   uint16_t pos = 0, prevPos = 0;
-  size_t readLen = 0;
   uint8_t maxErrs = 3;
 
   while (pos < len) {
-    readLen = Wire.requestFrom(i2cAddr, (len - pos));
+    Wire.requestFrom(i2cAddr, (len - pos));
 
     prevPos = pos;
     while (Wire.available()) {
@@ -315,31 +319,31 @@ uint8_t Goodix::read(uint16_t reg, uint8_t *buf, size_t len) {
   return 0;
 }
 
-void Goodix::pinOut(uint8_t pin) {
+void GT911::pinOut(uint8_t pin) {
   pinMode(pin, OUTPUT);
 }
 
-void Goodix::pinIn(uint8_t pin) {
+void GT911::pinIn(uint8_t pin) {
   pinMode(pin, INPUT);
 }
 
-void Goodix::pinSet(uint8_t pin, uint8_t level) {
+void GT911::pinSet(uint8_t pin, uint8_t level) {
   digitalWrite(pin, level);
 }
 
-void Goodix::pinHold(uint8_t pin) {
+void GT911::pinHold(uint8_t pin) {
   pinSet(pin, LOW);
 }
 
-bool Goodix::pinCheck(uint8_t pin, uint8_t level) {
+bool GT911::pinCheck(uint8_t pin, uint8_t level) {
   return digitalRead(pin) == level;
 }
 
-void Goodix::msSleep(uint16_t milliseconds) {
+void GT911::msSleep(uint16_t milliseconds) {
   delay(milliseconds);
 }
 
-void Goodix::usSleep(uint16_t microseconds) {
+void GT911::usSleep(uint16_t microseconds) {
   delayMicroseconds(microseconds);
 }
 

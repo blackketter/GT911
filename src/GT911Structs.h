@@ -1,4 +1,4 @@
-typedef struct GTInfo {
+struct GTInfo {
   // 0x8140-0x814A 
   char productId[4];
   uint16_t fwId;
