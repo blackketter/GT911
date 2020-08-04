@@ -182,8 +182,8 @@ void GT911::onIRQ() {
       Serial.print(points[i].area);
       Serial.println();
     }
-  }
 */
+  }
 
   write(GT911_READ_COORD_ADDR, 0);
 }
