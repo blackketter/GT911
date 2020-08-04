@@ -156,49 +156,36 @@ void GT911::armIRQ() {
 }
 
 void GT911::onIRQ() {
-  //uint8_t buf[1 + GT911_CONTACT_SIZE * GT911_MAX_CONTACTS];
-  int8_t contacts;
 
-  contacts = readInput(points);
+  contacts = readInput((uint8_t *)points);
   if (contacts < 0)
     return;
 
   if (contacts > 0) {
-    touchHandler(contacts, (GTPoint *)points);
-    /*
-        Serial.print("Contacts: ");
-        Serial.println(contacts);
+    if (touchHandler) {
+      touchHandler(contacts, points);
+    }
+/*
+    Serial.print("Contacts: ");
+    Serial.println(contacts);
 
-        for (uint8_t i = 0; i < contacts; i++) {
-          Serial.print("C ");
-          Serial.print(i);
-          Serial.print(": #");
-          Serial.print(points[i].trackId);
-          Serial.print(" ");
-          Serial.print(points[i].x);
-          Serial.print(", ");
-          Serial.print(points[i].y);
-          Serial.print(" s.");
-          Serial.print(points[i].size);
-          Serial.println();
-        }
-    */
+    for (uint8_t i = 0; i < contacts; i++) {
+      Serial.print("C ");
+      Serial.print(i);
+      Serial.print(": #");
+      Serial.print(points[i].trackId);
+      Serial.print(" ");
+      Serial.print(points[i].x);
+      Serial.print(", ");
+      Serial.print(points[i].y);
+      Serial.print(" s.");
+      Serial.print(points[i].area);
+      Serial.println();
+    }
   }
-
-  //Serial.println(&points[1 + GT911_CONTACT_SIZE * i]);
-  // GT911_ts_report_touch(&points[1 + GT911_CONTACT_SIZE * i]);
+*/
 
   write(GT911_READ_COORD_ADDR, 0);
-  /*struct GT911_ts_data *ts = dev_id;
-
-    GT911_process_events(ts);
-
-    write(GT911_READ_COORD_ADDR, 0);
-    //if (write(GT911_READ_COORD_ADDR, 0) < 0)
-    //  dev_err(&ts->client->dev, "I2C write end_cmd error\n");
-
-    return IRQ_HANDLED;
-  */
 }
 
 void GT911::loop() {
@@ -211,6 +198,7 @@ void GT911::loop() {
     onIRQ();
   }
 }
+
 #define EAGAIN 100 // Try again error
 
 int16_t GT911::readInput(uint8_t *data) {
@@ -231,17 +219,9 @@ int16_t GT911::readInput(uint8_t *data) {
     return -EAGAIN;
 
   touch_num = regState[0] & 0x0f;
-  //if (touch_num > ts->max_touch_num)
-  //  return -EPROTO;
-
-  //log_printf("touch num: %d\n", touch_num);
 
   if (touch_num > 0) {
-    /*    data += 1 + GT911_CONTACT_SIZE;
-        error = read(GT911_READ_COORD_ADDR + 1 + GT911_CONTACT_SIZE, data,
-              GT911_CONTACT_SIZE * (touch_num - 1));
-    */
-    error = read(GT911_READ_COORD_ADDR + 1, data, GT911_CONTACT_SIZE * (touch_num));
+     error = read(GT911_READ_COORD_ADDR + 1, data, GT911_CONTACT_SIZE * (touch_num));
 
     if (error)
       return -error;
@@ -346,5 +326,57 @@ void GT911::msSleep(uint16_t milliseconds) {
 void GT911::usSleep(uint16_t microseconds) {
   delayMicroseconds(microseconds);
 }
+
+
+TS_Point GT911::getPoint(uint8_t n) {
+  loop();
+  if ((contacts == 0) || (n >= contacts)) {
+    return TS_Point(0, 0, 0, 0);
+  } else {
+    uint8_t* point = (uint8_t*)(&points[n]);
+    /*  point structure:
+        point[0] - id
+        point[1] - x low
+        point[2] - x high
+        point[3] - y low
+        point[4] - y high
+        point[5] - area low
+        point[6] - area high
+        point[7] - reserved
+    */
+    return TS_Point(
+      (((uint16_t)point[2])<<8) + point[1],  // x
+      (((uint16_t)point[4])<<8) + point[3],  // y
+      (((uint16_t)point[6])<<8) + point[5],  // area
+      point[0]); // id
+    return TS_Point(points[n].x, points[n].y, points[n].area, points[n].trackId);
+  }
+}
+
+uint8_t GT911::touched() {
+  loop();
+  return contacts;
+}
+
+TS_Point::TS_Point(void) {
+  x = y = z = id = 0;
+}
+
+TS_Point::TS_Point(int16_t _x, int16_t _y, int16_t _z, int16_t _id) {
+  x = _x;
+  y = _y;
+  z = _z;
+  id = _id;
+}
+
+bool TS_Point::operator==(TS_Point p1) {
+  return  ((p1.x == x) && (p1.y == y) && (p1.z == z));
+}
+
+bool TS_Point::operator!=(TS_Point p1) {
+  return  ((p1.x != x) || (p1.y != y) || (p1.z != z));
+}
+
+
 
 

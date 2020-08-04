@@ -8,6 +8,7 @@
 
 GT911 touch = GT911();
 
+// note: GTPoint uint16_t are always little endian
 void handleTouch(int8_t contacts, GTPoint *points) {
   Serial.printf("Contacts: %d Time: %d\n", contacts,millis());
   for (uint8_t i = 0; i < contacts; i++) {
@@ -22,14 +23,14 @@ void touchStart() {
   } else {
     Serial.println("Module reset OK");
   }
-  
+
   Serial.print("Check ACK on addr request on 0x");
   Serial.print(touch.i2cAddr, HEX);
-  
-  Wire.beginTransmission(touch.i2cAddr);  
+
+  Wire.beginTransmission(touch.i2cAddr);
   int error = Wire.endTransmission();
-  if (error == 0) {    
-    Serial.println(": SUCCESS");   
+  if (error == 0) {
+    Serial.println(": SUCCESS");
   } else {
     Serial.print(": ERROR #");
     Serial.println(error);
@@ -48,7 +49,7 @@ void setup() {
   touchStart();
 }
 
-void loop() {  
+void loop() {
   touch.loop();
   delay(1);
 }
