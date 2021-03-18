@@ -156,17 +156,21 @@ void GT911::armIRQ() {
 }
 
 void GT911::onIRQ() {
-
-  contacts = readInput((uint8_t *)points);
-  if (contacts < 0)
+  int16_t readResult = readInput((uint8_t *)points);
+  if (readResult < 0) {
+//    Serial.print(millis());
+//    Serial.printf(" Error: %d\n", readResult);
     return;
+  }
 
+  contacts = readResult;
   if (contacts > 0) {
     if (touchHandler) {
       touchHandler(contacts, points);
     }
 /*
-    Serial.print("Contacts: ");
+    Serial.print(millis());
+    Serial.print(" Contacts: ");
     Serial.println(contacts);
 
     for (uint8_t i = 0; i < contacts; i++) {
@@ -208,10 +212,10 @@ int16_t GT911::readInput(uint8_t *data) {
   uint8_t regState[1];
 
   error = read(GT911_READ_COORD_ADDR, regState, 1);
-  //log_printf("regState: %#06x\n", regState);
+  //Serial.printf("regState:%x\n",regState[0]);
 
   if (error) {
-    //dev_err(&ts->client->dev, "I2C transfer error: %d\n", error);
+//    Serial.printf("read error:%d\n",error);
     return -error;
   }
 
